@@ -1,7 +1,3 @@
-<html>
-<head>
-	<title>Image filtering</title>
-	<script>
 		var Kernels = {
 			'Blur': [1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/9],
 			'Sharp': [0, -1,  0, -1,  5, -1, 0, -1,  0],
@@ -195,11 +191,4 @@
 		function load(im){
 			image=im;
 		}
-	</script>
-</head>
-<body>
-	<img id="myImage" src="win.jpg" width="300" height="300" onload="load(this)"> </img>
-	<canvas id="out"></canvas>
-	<button onclick="improc('Sobel')">Filter</button>
-</body>
-</html>
+	

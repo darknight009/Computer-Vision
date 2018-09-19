@@ -1,173 +1,88 @@
 <html>
 <head>
 	<title>Harris Corner detection</title>
+	<script src="../Kernel_Filter.js"></script>
 	<script>
-		var gscale_data=[];
-		var imgHeight, imgWidth;		
-		var myCanvas=document.createElement("canvas");
-		var myCanvasContext=myCanvas.getContext("2d");
-		function grayscale(image){
-			imgWidth=image.width;
-			imgHeight=image.height;
-			myCanvas.width= imgWidth;
-			myCanvas.height=imgHeight;
-			myCanvasContext.drawImage(image, 0, 0, imgWidth, imgHeight);
-			var imageData=myCanvasContext.getImageData(0,0, imgWidth, imgHeight);
-			for (i=0; i<imageData.height; i++){
-				var temp=[]
-				for (j=0; j<imageData.width; j++){
-			        var index=(i*4)*imageData.width+(j*4);
-			        var red=imageData.data[index];
-			        var green=imageData.data[index+1];
-			        var blue=imageData.data[index+2];
-			        var alpha=imageData.data[index+3];
-			        var average=(red+green+blue)/3;
-			   	    imageData.data[index]=average;
-			        imageData.data[index+1]=average;
-			        imageData.data[index+2]=average;
-			        imageData.data[index+3]=alpha;
-			        temp[j]=average;
-			    }
-			    gscale_data[i]=temp;
+		function dotMult(m1, m2){
+			var temp=[];
+			for(i =0; i<m1.length; i++){
+					temp[i]=m1[i]*m2[i];
 			}
-			//myCanvasContext.putImageData(imageData,0,0,0,0, imageData.width,   imageData.height);
-			//var myDiv=document.createElement("div");
-			//myDiv.appendChild(myCanvas);
-			//image.parentNode.appendChild(myCanvas);
-			return myCanvas.toDataURL();
+			return temp;
 		}
 
-		function gradient(data){			
-			var tempyend=[];
-			var dx=[], dy=[];
-			for (i=0; i<data.length; i++){
-				var tempy=[];
-				var tempx=[];
-				for (j=0; j<data[0].length; j++){
-					//Columns
-					if(i===1){
-						tempy[j]=data[i][j]-data[i-1][j];
-					}
-					else if(i===data.length-1){
-						tempy[j]=(data[i][j]-data[i-2][j])/2;
-						tempyend[j]=data[i][j]-data[i-1][j];
-					}
-					else if(i!=0){
-						tempy[j]=(data[i][j]-data[i-2][j])/2;
-					}
-					//Rows
-					if(j===1){
-						tempx[j-1]=data[i][j]-data[i][j-1];
-					}
-					else if(j===gscale_data[0].length-1){
-						tempx[j-1]=(data[i][j]-data[i][j-2])/2;
-						tempx[j]=data[i][j]-data[i][j-1];
-					}
-					else if(j!=0){
-						tempx[j-1]=(data[i][j]-data[i][j-2])/2;
-					}
-
-				}
-				dy.push(tempy);
-				dx.push(tempx);
+		function matAdd(m1, m2){
+			var temp=[];
+			for(i =0; i<m1.length; i++){
+					temp[i]=m1[i]+m2[i];
 			}
-			dy.push(tempyend);
-			dy.shift();
-			return {
-				dy:dy,
-				dx:dx
-			};
+			return temp;
 		}
 
-		function multiply(a, b) { //works for array size >2
-		  var aNumRows = a.length, aNumCols = a[0].length,
-		      bNumRows = b.length, bNumCols = b[0].length,
-		      m = new Array(aNumRows);  // initialize array of rows
-		  for (var r = 0; r < aNumRows; ++r) {
-		    m[r] = new Array(bNumCols); // initialize the current row
-		    for (var c = 0; c < bNumCols; ++c) {
-		      m[r][c] = 0;             // initialize the current cell
-		      for (var i = 0; i < aNumCols; ++i) {
-		        m[r][c] += a[r][i] * b[i][c];
-		      }
-		    }
-		  }
-		  return m;
-		}
-
-		function elemWiseMultiply(a, b){
-			m = new Array(a.length);
-			for(var i=0; i<a.length; i++){
-				var temp=[]
-				for(var j=0; j<a[0].length; j++){
-					temp[j]=a[i][j]*b[i][j];
-				}
-				m[i]=temp;
+		function matSub(m1, m2){
+			var temp=[];
+			for(i =0; i<m1.length; i++){
+					temp[i]=m1[i]-m2[i];
 			}
-			return m;
+			return temp;
 		}
 
-		function drawcorners(corners){
-			var canvas = document.getElementById('points');
-			canvas.width= imgWidth;
-			canvas.height=imgHeight;
+		function scalarMul(k, m){
+			var temp=[];
+			for(i =0; i<m.length; i++){
+				temp[i]=m[i]*k;
+			}
+			return temp;
+		}
+
+		function drawCorners(corners){
+			var canvas = document.getElementById('filtered');
 			  if (canvas.getContext) {
 			    var ctx = canvas.getContext('2d');
 			    for(i=0; i<corners.length; i++){
-			    	ctx.fillStyle="#FF0000";
-			    	ctx.fillRect(corners[i][0], corners[i][1], 1, 1);
+			    	ctx.strokeStyle="#FF0000";
+			    	ctx.beginPath();
+			    	ctx.arc(corners[i][0], corners[i][1],4,0,2*Math.PI);
+			    	ctx.stroke();
+			    	ctx.fillStyle = "#FF0000";
+			    	ctx.fill();
 			    }
 			}
 		}
 
 		function getCorners(){
-			var offset = 3;
-			var k=0.06;
-			var thresh=20000000;
-			var cornerList = [];
-			var grad = gradient(gscale_data);
-			var ixx = elemWiseMultiply(grad.dx, grad.dx);
-			var ixy = elemWiseMultiply(grad.dy, grad.dx);
-			var iyy = elemWiseMultiply(grad.dy, grad.dy);
-			for (y = offset; y<imgHeight-offset; y++){
-				for (x = offset; x<imgWidth-offset; x++){
-				/*
-					var A=ixx[x][y];
-					var B=iyy[x][y];
-					var C=ixy[x][y];
-					var tr=A+B;
-					var det=A*B-C*C;
-					var score=det-k*tr*tr;
-					*/
-					var windowxx=[];
-					var windowxy=[];
-					var windowyy=[];
-					var Sxx=0;
-					var Sxy=0;
-					var Syy=0;
-					for (j=y-offset; j<=y+offset; j++){
-						windowxx[j-y+offset] = ixx[j].slice(x-offset, x+offset+1);
-						Sxx+=ixx[j].slice(x-offset, x+offset+1).reduce((a, b) => a + b, 0);
-						windowxy[j-y+offset] = ixy[j].slice(x-offset, x+offset+1);
-						Sxy+=ixy[j].slice(x-offset, x+offset+1).reduce((a, b) => a + b, 0);
-						windowyy[j-y+offset] = iyy[j].slice(x-offset, x+offset+1);
-						Syy+=iyy[j].slice(x-offset, x+offset+1).reduce((a, b) => a + b, 0);
-					}
-					var det=(Sxx*Syy)-(Sxy*Sxy);
-					var trace = Sxx+Syy;
-					var score = det- k*(trace*trace);
-
-					if (score>thresh){
-						cornerList.push([x, y]);
-					}
-				}
+			var grayscale = Filters.filterImage(Filters.grayscale, image);
+				var c = document.getElementById("filtered");
+				c.width = image.width;
+				c.height = image.height;
+				var ctx = c.getContext('2d');
+				ctx.putImageData(grayscale, 0, 0);
+			var Iy = Filters.convolute(grayscale,Kernels['SobelY'], true).data;
+			var Ix = Filters.convolute(grayscale,Kernels['SobelX'], true).data;
+			var Iyy = dotMult(Iy, Iy);
+			var Ixx = dotMult(Ix, Ix);
+			var Ixy = dotMult(Ix, Iy);
+			var det = matSub(dotMult(Ixx, Iyy), dotMult(Ixy, Ixy));
+			var trace = matAdd(Ixx,Iyy);
+			var trace2 = dotMult(trace, trace);
+			var lambda = 0.04;
+			var H = matSub(det, scalarMul(lambda, trace2));
+			var corners=[];
+			var mx = 0;
+			for (var i=0; i<H.length; i+=4) {
+				if(Math.abs(H[i])>mx) mx=Math.abs(H[i]);
 			}
-			drawcorners(cornerList);			        
+			console.log(mx)
+			for (var i=0; i<H.length; i+=4) {
+				if(Math.abs(H[i])>=0.9*mx) corners.push([Math.floor(i/(4*image.width)), (i/4)%image.width]);
+			}
+			console.log(corners);
+			drawCorners(corners);
 		}
 	</script>
 </head>
 <body>
-	<img id="myImage" src="checkerboard.png" width="300" height="300" onload="grayscale(this)"></img>
+	<img id="myImage" src="checkerboard.png" onload="load(this)"></img>
 	<button onclick="getCorners()">Get Corners</button>
-	<canvas id="points" position="relative"> </canvas>
+	<canvas id="filtered"></canvas>
 </body>
